@@ -1,7 +1,8 @@
 
+#include <algorithm>
 #include "objectmodel.hpp"
-#include "heap-inl.hpp"
 #include "objectmodel-inl.hpp"
+#include "heap-inl.hpp"
 #include "handle-inl.hpp"
 
 namespace sanya {
@@ -43,6 +44,12 @@ intptr_t RawSymbol::Hash_V() const {
     return hash_;
 }
 
+RawVector::RawVector(size_t length, const Handle &fill) {
+    object_type_ = kVectorType;
+    this->length_ = length;
+    std::fill(data_, data_ + length, fill.raw());
+}
+
 void RawVector::Write_V(FILE *stream) const {
     fprintf(stream, "#(");
     if (length_ == 0) {
@@ -66,6 +73,67 @@ void RawVector::UpdateInteriorPointers(Heap &heap) {
     for (size_t i = 0; i < length_; ++i) {
         data_[i] = heap.MarkAndCopy(data_[i]);
     }
+}
+
+RawPair *RawDict::LookupSymbol(const Handle& symbol, LookupFlag flag) {
+    intptr_t hash = symbol.AsSymbol().Hash();
+    const char *key = symbol.AsSymbol().Unwrap();
+    size_t len = symbol.AsSymbol().length();
+    size_t bucket = hash & mask_;
+    Handle self = this;
+    Handle vec = self.AsDict().vec_;
+    Handle head = vec.AsVector().At(bucket);
+    Handle dummy_head = RawPair::Wrap(RawNil::Wrap(), head.raw());
+    Handle iter = NULL;
+    Handle entry = NULL;
+    Handle entry_key = NULL;
+
+    while (!dummy_head.AsPair().cdr()->IsNil()) {
+        iter = dummy_head.AsPair().cdr();
+        entry = iter.AsPair().car();
+        entry_key = entry.AsPair().car();
+        if (entry_key.AsSymbol().Hash() == hash) {
+            size_t slen = entry_key.AsSymbol().length();
+            const char *sval = entry_key.AsSymbol().Unwrap();
+            if (slen != len) {
+                continue;
+            }
+            else {
+                if (!std::equal(key, key + len, sval)) {
+                    continue;
+                }
+                else {
+                    // This symbol is found.
+                    goto found;
+                }
+            }
+        }
+        dummy_head = iter;
+    }
+    // Key is absent since dummy_head.cdr is nil
+    if (flag & kCreateOnAbsent) {
+        Handle new_symbol = RawSymbol::Wrap(key);
+        Handle entry = RawPair::Wrap(new_symbol, RawNil::Wrap());
+        Handle new_list_item = RawPair::Wrap(entry.raw(), RawNil::Wrap());
+        dummy_head.AsPair().set_cdr(new_list_item.raw());
+        return &entry.AsPair();
+    }
+    else {
+        return NULL;
+    }
+found:
+    if (flag & kDeleteOnFound) {
+        dummy_head.AsPair().set_cdr(iter.AsPair().cdr());
+    }
+    return &entry.AsPair();
+}
+
+RawDict::RawDict()
+    : used_(0),
+      mask_(kInitLength - 1),
+      vec_(NULL) {
+    Handle self = this;
+    self.AsDict().vec_ = RawVector::Wrap(kInitLength, RawNil::Wrap());
 }
 
 void RawDict::Write_V(FILE *stream) const {

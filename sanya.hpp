@@ -1,3 +1,5 @@
+#ifndef SANYA_HPP
+#define SANYA_HPP
 
 /**
  * @file sanya.hpp
@@ -11,3 +13,5 @@
       __FILE__, __func__, __LINE__, what); \
   exit(1)
 
+
+#endif /* SANYA_HPP */

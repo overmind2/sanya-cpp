@@ -1,3 +1,5 @@
+#ifndef HANDLE_INL_HPP
+#define HANDLE_INL_HPP
 namespace sanya {
 
 inline Handle::~Handle() {
@@ -20,18 +22,20 @@ inline Handle::Handle(const Handle &o) {
 
 /** @brief Assignment mutator */
 inline Handle &Handle::operator=(const Handle &o) {
-    LinkToRootSet(o.raw_);
+    set_raw(o.raw_);
     return *this;
 }
 
-/** @brief Assignment constructor */
 inline Handle &Handle::operator=(RawObject *ro) {
-    LinkToRootSet(ro);
+    set_raw(ro);
     return *this;
 }
 
-/** @brief Raw pointer accessor */
-inline RawObject *Handle::Raw() const {
+inline void Handle::set_raw(RawObject *new_raw) {
+    LinkToRootSet(new_raw);
+}
+
+inline RawObject *Handle::raw() const {
     return raw_;
 }
 
@@ -93,8 +97,13 @@ inline void Handle::LinkToRootSet(RawObject *ro) {
 inline void Handle::UnlinkFromRootSet() {
     prev_root_->next_root_ = next_root_;
     next_root_->prev_root_ = prev_root_;
+    prev_root_ = NULL;
+    next_root_ = NULL;
 }
 
 }  // namespace sanya
 
 // vim: set ts=4 sw=4 sts=4:
+
+
+#endif /* HANDLE_INL_HPP */

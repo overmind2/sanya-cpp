@@ -1,29 +1,26 @@
-
 #include <cstdio>
+#include <string>
+#include <iostream>
 #include "heap.hpp"
 #include "objectmodel.hpp"
 #include "heap-inl.hpp"
 #include "objectmodel-inl.hpp"
 #include "handle-inl.hpp"
+#include "sparse/parse_api.h"
 
 using namespace sanya;
 
 int main(int argc, const char *argv[])
 {
-    Handle symb = RawSymbol::Wrap("hehehe");
-    Handle nil = RawNil::Wrap();
-    Handle pair = RawPair::Wrap(symb, nil);
-    Handle vec = RawVector::Wrap(10, pair);
+    Handle expr = RawNil::Wrap();
 
-    printf("symb = %p, \"%s\"\n", symb.Raw(), symb.AsSymbol().Unwrap());
-    pair.Raw()->Write(stdout);
-    vec.Raw()->Write(stdout);
-
-    Heap::Get().TriggerCollection();
-
-    pair.Raw()->Write(stdout);
-    printf("symb = %p, \"%s\"\n", symb.Raw(), symb.AsSymbol().Unwrap());
-    vec.Raw()->Write(stdout);
+    while (true) {
+        std::string line;
+        std::getline(std::cin, line);
+        expr = sparse_do_string(line.c_str());
+        //Heap::Get().TriggerCollection();
+        expr.raw()->Write(stdout);
+    }
 
     return 0;
 }

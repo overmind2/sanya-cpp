@@ -46,11 +46,13 @@ void Heap::TriggerCollection() {
     }
 
     // Optional: call destructors for objects.
+    printf(":heap-collect %ld => %ld\n", usage_, copy_usage_);
 
     // Flip over and clean up
     std::swap(usage_, copy_usage_);
+    copy_usage_ = 0;
     std::swap(from_space_, to_space_);
-    memset(to_space_, 0, size_);
+    std::fill(to_space_, to_space_ + size_, 0);
 }
 
 // Private implementation of a dummy head.

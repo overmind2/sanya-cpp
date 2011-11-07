@@ -1,3 +1,7 @@
+#ifndef HANDLE_HPP
+#define HANDLE_HPP
+
+#include <cstdio>
 
 namespace sanya {
 
@@ -29,14 +33,17 @@ public:
     /** @brief Copy constructor from another object */
     inline Handle(const Handle &o);
 
+    /** @brief Raw pointer accessor */
+    inline RawObject *raw() const;
+
+    /** @brief Assignment constructor */
+    inline void set_raw(RawObject *);
+
     /** @brief Assignment mutator */
     inline Handle &operator=(const Handle &o);
 
-    /** @brief Assignment constructor */
+    /** @see set_raw */
     inline Handle &operator=(RawObject *ro);
-
-    /** @brief Raw pointer accessor */
-    inline RawObject *Raw() const;
 
     inline RawObject &AsObject() const;
     inline RawPair &AsPair() const;
@@ -44,6 +51,11 @@ public:
     inline RawSymbol &AsSymbol() const;
     inline RawVector &AsVector() const;
     inline RawDict &AsDict() const;
+
+    void print_info() {
+        printf("raw = %p, prev_root = %p, next_root = %p\n",
+                raw_, prev_root_, next_root_);
+    }
 
 private:
     inline Handle();
@@ -68,3 +80,5 @@ private:
 
 // vim: set ts=4 sw=4 sts=4:
 
+
+#endif /* HANDLE_HPP */

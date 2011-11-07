@@ -1,8 +1,10 @@
+#ifndef HEAP_INL_HPP
+#define HEAP_INL_HPP
 namespace sanya {
 
 Heap &Heap::Get() {
     if (!default_s)
-        default_s = new Heap(1024 * 1024 * 2);
+        default_s = new Heap(kDefaultSize);
     return *default_s;
 }
 
@@ -10,6 +12,7 @@ RawHeapObject *Heap::Alloc(size_t size) {
     // Align.
     size = (size + kAligner) & (~kAligner);
     size_t usage_after_alloc = size + usage_;
+    printf(":heap-alloc %ld => %ld\n", usage_, usage_after_alloc);
     if (usage_after_alloc > size_) {
         // Mark and copy is triggered.
         TriggerCollection();
@@ -23,6 +26,7 @@ RawHeapObject *Heap::Alloc(size_t size) {
 
     // Allocate this pointer.
     RawHeapObject *ptr = (RawHeapObject *)(from_space_ + usage_);
+    ptr->object_size_ = size;
     usage_ = usage_after_alloc;
 
     // GC-related things are in operator new.
@@ -95,3 +99,6 @@ void RootSet::Put(Handle *o) {
 }  // namespace sanya
 
 // vim: set ts=4 sw=4 sts=4:
+
+
+#endif /* HEAP_INL_HPP */

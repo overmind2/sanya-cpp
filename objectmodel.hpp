@@ -28,9 +28,10 @@ public:
     static const uintptr_t kNonHeapTypeMask = (1 << kNonHeapTypeShift) - 1;
 
     enum ObjectType {
-        kFixnumType = 1,
-        kNilType = 2,
-        kTagType = 3,
+        kFixnumType     = 1,
+        kNilType        = 2,
+        kBooleanType    = 3,
+        kTagType        = 4,
         kLastNonHeapType = kNonHeapTypeMask,  // Last non-heap-object
         kSymbolType = kLastNonHeapType + 1,
         kPairType,
@@ -51,8 +52,10 @@ public:
 
     inline void Write(FILE *stream) const;
     inline intptr_t Hash() const;
+    inline bool IsTrue() const;
 
     inline bool IsNil() const;
+    inline bool IsBoolean() const;
     inline bool IsFixnum() const;
     inline bool IsPair() const;
     inline bool IsSymbol() const;
@@ -93,6 +96,12 @@ public:
     static inline RawNil *Wrap();
 };
 
+class RawBoolean : public RawObject {
+public:
+    static inline RawBoolean *Wrap(bool bool_val);
+    inline intptr_t Unwrap() const;
+};
+
 /**
  * @brief The baseclass for any raw object that is allocated on the
  * garbage-collected heap.
@@ -103,18 +112,14 @@ class RawHeapObject : public RawObject {
 
 class RawPair : public RawHeapObject {
 public:
-    static RawPair *Wrap(const Handle &car_h, const Handle &cdr_h) {
-        RawPair *self = new RawPair();
-        self->car_ = car_h.Raw();
-        self->cdr_ = cdr_h.Raw();
-        return self;
-    }
-    RawObject *car() const {
-        return car_;
-    }
-    RawObject *cdr() const {
-        return cdr_;
-    }
+    inline static RawPair *Wrap(const Handle &car_h, const Handle &cdr_h);
+
+    inline RawObject *car() const;
+    inline RawObject *cdr() const;
+
+    inline void set_car(RawObject *new_car);
+    inline void set_cdr(RawObject *new_cdr);
+
     virtual void Write_V(FILE *stream) const;
     intptr_t Hash_V() const;
 
@@ -122,7 +127,7 @@ protected:
     virtual void UpdateInteriorPointers(Heap &heap);
 
 private:
-    RawPair() { }
+    inline RawPair();
 
     RawObject *car_;
     RawObject *cdr_;
@@ -130,41 +135,17 @@ private:
 
 class RawSymbol : public RawHeapObject {
 public:
-    static RawSymbol *Wrap(const char *str_val) {
-        size_t len = strlen(str_val);
-        void *addr = RawObject::operator new(sizeof(RawSymbol) + len + 1);
-        return (RawSymbol *)::new (addr) RawSymbol(str_val, len);
-    }
-    const char *Unwrap() const {
-        return sval_;
-    }
-    size_t length() const {
-        return len_;
-    }
+    inline static RawSymbol *Wrap(const char *str_val);
+    inline const char *Unwrap() const;
+    inline size_t length() const;
+
+    static inline intptr_t StringHash(const char *s, size_t len);
     virtual void Write_V(FILE *stream) const;
-
-    static intptr_t StringHash(const char *s, size_t len) {
-        intptr_t iter = len;
-        intptr_t x;
-        x = *s << 7;
-        while (--iter >= 0)
-            x = (1000003*x) ^ *s++;
-        x ^= len;
-        if (x == -1)
-            x = -2;
-        return x;
-    }
-
     virtual intptr_t Hash_V() const;
 
 protected:
     // Default ctor will clear out the values.
-    RawSymbol(const char *s, size_t len) {
-        object_type_ = kSymbolType;
-        memcpy(sval_, s, len + 1);
-        this->len_ = len;
-        this->hash_ = StringHash(s, len);
-    }
+    inline RawSymbol(const char *s, size_t len);
 
     // Dummy
     virtual void UpdateInteriorPointers(Heap &heap) { }
@@ -177,41 +158,18 @@ private:
 
 class RawVector : public RawHeapObject {
 public:
-    static RawVector *Wrap(size_t length, const Handle &fill) {
-        void *addr = RawObject::operator new(sizeof(RawVector) +
-                length * sizeof(RawObject *));
-        return (RawVector *)::new (addr) RawVector(length, fill);
-    }
+    static inline RawVector *Wrap(size_t length, const Handle &fill);
 
-    RawObject *&At(size_t index) {
-        if (index < 0 || index >= length_) {
-            // Since we are doing safe operations, this is checked.
-            FATAL_ERROR("vector index out of bound");
-        }
-        else {
-            return data_[index];
-        }
-    }
-
-    RawObject *const&At(size_t index) const {
-        return ((RawVector *)this)->At(index);
-    }
-
-    size_t length() const {
-        return length_;
-    }
+    inline RawObject *&At(size_t index);
+    inline RawObject *const&At(size_t index) const;
+    inline size_t length() const;
 
     virtual void Write_V(FILE *stream) const;
     virtual intptr_t Hash_V() const;
 
 protected:
-    RawVector(size_t length, const Handle &fill) {
-        object_type_ = kVectorType;
-        this->length_ = length;
-        for (size_t i = 0; i < length; ++i) {
-            data_[i] = fill.Raw();
-        }
-    }
+    // Contains a loop so no inlining
+    RawVector(size_t length, const Handle &fill);
 
     virtual void UpdateInteriorPointers(Heap &heap);
 
@@ -236,58 +194,14 @@ public:
     virtual intptr_t Hash_V() const;
     virtual void Write_V(FILE *stream) const;
 
-    RawPair *LookupCString(const char *key, size_t len, intptr_t hash,
-                           LookupFlag flag) {
-        size_t bucket = hash & mask_;
-        Handle self = this;
-        Handle vec = self.AsDict().vec_;
-        Handle head = vec.AsVector().At(bucket);
-        Handle dummy_head = RawPair::Wrap(RawNil::Wrap(), head.Raw());
-        Handle iter = NULL;
-        Handle entry = NULL;
-
-        while (!dummy_head.AsObject().IsNil()) {
-            iter = dummy_head.AsPair().cdr();
-            entry = iter.AsPair().car();
-            Handle entry_key = entry.AsPair().car();
-            if (entry_key.AsSymbol().Hash() == hash) {
-                size_t slen = entry_key.AsSymbol().length();
-                const char *sval = entry_key.AsSymbol().Unwrap();
-                if (slen != len) {
-                    continue;
-                }
-                else {
-                    if (memcmp(key, sval, len) != 0) {
-                        continue;
-                    }
-                    else {
-                        // Finally this symbol is found.
-                        goto found;
-                    }
-                }
-            }
-            dummy_head = iter;
-        }
-        // Key is absent.
-        if (flag & kCreateOnAbsent) {
-        }
-found:
-        return NULL;
-    }
-
-    RawPair *LookupHashable(const Handle &key, LookupFlag flag) {
-        intptr_t hash = key.AsObject().Hash();
-        return NULL;
-    }
+    /**
+     * @brief Lookup a given cstring inside the hashtable. Return an
+     * entry of this string, or NULL if not found.
+     */
+    RawPair *LookupSymbol(const Handle &key, LookupFlag flag);
 
 protected:
-    RawDict()
-        : used_(0),
-          mask_(kInitLength - 1),
-          vec_(NULL) {
-        Handle self = this;
-        self.AsDict().vec_ = RawVector::Wrap(kInitLength, RawNil::Wrap());
-    }
+    RawDict();
 
     virtual void UpdateInteriorPointers(Heap &heap);
 
