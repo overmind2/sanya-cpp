@@ -8,18 +8,30 @@
 #include <cstddef>
 #include <utility>
 
+#include "sanya.hpp"
+
 namespace sanya {
 
 // Forwarded from objectmodel.hpp
-class Object;
+class Handle;
 class RawObject;
 class RawHeapObject;
 
+/**
+ * @class Heap
+ * @brief An memory manager that acts as a partial object space which
+ * knows every objects and their handles (through RootSet).
+ */
 class Heap {
 public:
+    const static int kAlignment = 16;  // 16-bytes
+    const static int kAligner = kAlignment - 1;
+
     Heap(size_t size);
     ~Heap();
-    static Heap &get();
+
+    /** @brief Get the singleton heap */
+    inline static Heap &Get();
 
     /**
      * @brief Allocate a chunk of memory on the heap.
@@ -27,65 +39,47 @@ public:
      * followed by a full copying. Or if a incremental GC is used, this may
      * trigger a tiny marking or a tiny copying.
      *
-     * Now we are using naive stop-the-world GC.
+     * We really want to inline this.
      */
-    RawHeapObject *alloc(size_t size) {
-        // Align.
-        size = (size + 15) & (~15);
-        size_t usageAfterAlloc = size + usage_;
-        if (usageAfterAlloc > size_) {
-            // Mark and copy is triggered.
-            triggerCollection();
+    inline RawHeapObject *Alloc(size_t size);
 
-            // Recheck size.
-            usageAfterAlloc = size + usage_;
-            if (usageAfterAlloc > size_) {
-                // Heap ran out of space.
-                fprintf(stderr, "ERROR: Heap::alloc(%ld) -- out of space\n",
-                        size);
-                exit(1);
-            }
-        }
-
-        // Allocate this pointer.
-        RawHeapObject *ptr = (RawHeapObject *)(fromSpace_ + usage_);
-        usage_ = usageAfterAlloc;
-
-        // GC-related things are in operator new.
-        return ptr;
-    }
-
-    void dealloc(RawHeapObject *ro) { }
+    // Not used
+    void Dealloc(RawHeapObject *rho) { }
 
     /** 
      * @brief If this object is not allocated on the heap, return itself.
      * If this object was copied, return its forwarding pointer.
      * Otherwise, copy this object and return its forwarding pointer.
      */
-    RawObject *markAndCopy(RawObject *ro);
+    inline RawObject *MarkAndCopy(RawObject *ro);
 
-    void triggerCollection();
+    /**
+     * @brief Start stop-the-world copy collection. Don't try to inline this.
+     */
+    void TriggerCollection();
 
 protected:
 
     // False for fixnum.
-    bool isHeapAllocated(RawObject *ro);
+    inline bool IsHeapAllocated(RawObject *ro);
 
     // When ro is already copied.
-    bool isForwardPointer(RawObject *ro);
-    RawHeapObject *getForwardPointer(RawHeapObject *ro);
-    void setForwardPointer(RawHeapObject *fromAddress,
-                           RawHeapObject *toAddress);
+    inline bool IsForwardPointer(RawObject *ro);
+    inline RawHeapObject *GetForwardPointer(RawHeapObject *ro);
+    inline void SetForwardPointer(RawHeapObject *from_address,
+                                  RawHeapObject *to_address);
 
-    size_t getRawObjectSize(RawObject *ro);
+    inline size_t GetRawObjectSize(RawObject *ro);
 
 private:
+    static Heap *default_s;
+
     size_t size_;
     size_t usage_;
-    char *fromSpace_;
+    char *from_space_;
 
-    size_t copyUsage_;
-    char *toSpace_;
+    size_t copy_usage_;
+    char *to_space_;
 };
 
 class RootSet {
@@ -93,12 +87,14 @@ class RootSet {
 public:
     RootSet();
     ~RootSet();
-    static RootSet &get();
+    static inline RootSet &Get();
 
-    void put(Object *o);
+    inline void Put(Handle *o);
 
 private:
-    Object *head_;
+    static RootSet *default_s;
+
+    Handle *head_;
 };
 
 }  // namespace sanya

@@ -1,0 +1,30 @@
+
+# Generally speaking, we need a flow analyzer.
+
+# More opcodes for apply:
+# apply1, apply2, ...applyn
+
+# Avoid lookups of global procedures -- may be a pitfall when there
+# is a (load "filename") present.
+# When the name of the procedure called is never modified in the code,
+# (cons 1 2) will have the first insn to be (load-prelude INDEX_CONS),
+# rather than (load-global 'cons)
+
+# (further) Prelude procedure inlining -- when (load-prelude) optimization
+# is done, further we can look at optimizing (load-prelude) followed by 
+# (applyn) to be (apply-prelude), to inline the call into the vm.
+
+# constant folding
+
+# copy propagantion
+
+# Tail recursive inlining -- When the name of the procedure called is
+# never modified in the code, (tail-applyn) will be changed to be a 
+# (branch) to the begining of the code.
+
+# Simple Jit -- eliminate opcode dispatch by inline them using libjit.
+# which is not available in pypy toolchain but could be used in CPython
+# and C++.
+# Large scale full-jit will require lots of codes and will not play
+# well with anything other than C?
+

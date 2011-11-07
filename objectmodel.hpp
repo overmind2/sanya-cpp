@@ -3,7 +3,9 @@
 
 #include <new>
 #include <cstring>
+#include "sanya.hpp"
 #include "heap.hpp"
+#include "handle.hpp"
 
 /**
  * @file objectmodel.hpp
@@ -13,7 +15,7 @@
  * may be collected or moved from place to place by the garbage collector
  * (see heap.hpp).
  *
- * Object and friends are interfaces that contains a raw pointer. They
+ * Handle and friends are interfaces that contains a raw pointer. They
  * are allocated on the runtime stack maintained by the compiler.
  */
 
@@ -22,13 +24,14 @@ namespace sanya {
 class RawObject {
     friend class Heap;
 public:
-    static const uintptr_t nonHeapTypeShift = 4;
-    static const uintptr_t nonHeapTypeMask = (1 << nonHeapTypeShift) - 1;
+    static const uintptr_t kNonHeapTypeShift = 4;
+    static const uintptr_t kNonHeapTypeMask = (1 << kNonHeapTypeShift) - 1;
 
     enum ObjectType {
         kFixnumType = 1,
         kNilType = 2,
-         kLastNonHeapType = nonHeapTypeMask,
+        kTagType = 3,
+        kLastNonHeapType = kNonHeapTypeMask,  // Last non-heap-object
         kSymbolType = kLastNonHeapType + 1,
         kPairType,
         kVectorType
@@ -37,52 +40,26 @@ public:
     virtual ~RawObject() { }
 
     // Should have static alloc/init methods.
-    void *operator new(size_t size) {
-        void *ptr = Heap::get().alloc(size);
-        RawObject *o = (RawObject *)ptr;
+    inline void *operator new(size_t size);
+    inline void operator delete(void *ptr);
 
-        o->objectSize_ = size;
-        o->self_ = (RawHeapObject *)o;
-        return ptr;
-    }
-    void operator delete(void *ptr) {
-        Heap::get().dealloc((RawHeapObject *)ptr);
-    }
-    bool isHeapAllocated() const {
-        return !(((uintptr_t)this) & nonHeapTypeMask) && this;
-    }
-    // this Maybe NULL.
-    ObjectType getType() const {
-        uintptr_t word = (uintptr_t)this;
-        uintptr_t type;
-        if ((type = word & nonHeapTypeMask)) {
-            return (ObjectType)type;
-        }
-        return this->objectType_;
-    }
+    // Since `this` may be NULL, we need to add additional check.
+    inline bool heap_allocated() const;
 
-    bool isNil() const {
-        return getType() == RawObject::kNilType;
-    }
+    // Here `this` will never be NULL.
+    inline ObjectType object_type() const;
 
-    bool isFixnum() const {
-        return getType() == RawObject::kFixnumType;
-    }
+    inline void Write(FILE *stream) const;
+    inline intptr_t Hash() const;
 
-    bool isPair() const {
-        return getType() == RawObject::kPairType;
-    }
+    inline bool IsNil() const;
+    inline bool IsFixnum() const;
+    inline bool IsPair() const;
+    inline bool IsSymbol() const;
+    inline bool IsVector() const;
 
-    bool isSymbol() const {
-        return getType() == RawObject::kSymbolType;
-    }
-
-    bool isVector() const {
-        return getType() == RawObject::kVectorType;
-    }
-
-    void printRepr(FILE *stream) const;
-    virtual void printReprV(FILE *stream) const = 0;
+    virtual void Write_V(FILE *stream) const = 0;
+    virtual intptr_t Hash_V() const = 0;
 
 protected:
     // Not constructed directly.
@@ -92,34 +69,28 @@ protected:
     // then update interior pointer fields.
     // This is what GC does not know (if we want to write cleaner code)
     // but is it possible that inlining it will greatly affect the performance?
-    virtual void updateInteriorPointers(Heap &heap) = 0;
+    virtual void UpdateInteriorPointers(Heap &heap) = 0;
 
     // Those may not present in non-heap objects
-    uint32_t objectSize_;
-    ObjectType objectType_;
+    uint32_t object_size_;
+    ObjectType object_type_;
     RawHeapObject *self_;
 
 private:
-    // Arrayish new and delete are disabled.
+    // Arrayish new and deletes are disabled.
     void *operator new[](size_t size);
     void operator delete[](void *ptr);
 };
 
 class RawFixnum : public RawObject {
 public:
-    static RawFixnum *wrap(long ival) {
-        return (RawFixnum *)((ival << nonHeapTypeShift) | kFixnumType);
-    }
-    long unwrap() const {
-        return ((intptr_t)this) >> nonHeapTypeShift;
-    }
+    static inline RawFixnum *Wrap(intptr_t int_val);
+    inline intptr_t Unwrap() const;
 };
 
 class RawNil : public RawObject {
 public:
-    static RawNil *wrap() {
-        return (RawNil *)kNilType;
-    }
+    static inline RawNil *Wrap();
 };
 
 /**
@@ -128,121 +99,14 @@ public:
  */
 class RawHeapObject : public RawObject {
     friend class Heap;
-public:
-    ObjectType getType() const {
-        return objectType_;
-    }
-};
-
-// Forwarding for Object.
-class RawPair;
-class RawSymbol;
-class RawVector;
-class RawHash;
-
-class Object {
-    friend class Heap;
-    friend class RootSet;
-    friend class DummyObjectHead;
-public:
-    ~Object() {
-        if (prevRoot_ || nextRoot_) {
-            unlinkFromRootSet();
-        }
-    }
-
-    /** @brief Construct from newly-allocated raw object */
-    Object(RawObject *ro) {
-        empty();
-        linkToRootSet(ro);
-    }
-
-    /** @brief Copy constructor from another object */
-    Object(const Object &o) {
-        empty();
-        linkToRootSet(o.raw_);
-    }
-
-    /** @brief Assignment mutator */
-    Object &operator=(const Object &o) {
-        linkToRootSet(o.raw_);
-        return *this;
-    }
-
-    /** @brief Assignment constructor */
-    Object &operator=(RawObject *ro) {
-        linkToRootSet(ro);
-        return *this;
-    }
-
-    /** @brief Raw pointer accessor */
-    RawObject *raw() const {
-        return raw_;
-    }
-    RawHeapObject *asRHO() const {
-        return (RawHeapObject *)raw_;
-    }
-    RawPair *asPair() const {
-        return (RawPair *)raw_;
-    }
-    RawFixnum *asFixnum() const {
-        return (RawFixnum *)raw_;
-    }
-    RawSymbol *asSymbol() const {
-        return (RawSymbol *)raw_;
-    }
-
-private:
-    Object() { }
-
-    void empty() {
-        raw_ = NULL;
-        prevRoot_ = NULL;
-        nextRoot_ = NULL;
-    }
-
-    void linkToRootSet(RawObject *ro) {
-        if (ro->isHeapAllocated()) {
-            if (!nextRoot_) {
-                // The first time we got a heap object
-                RootSet::get().put(this);
-            }
-            else {
-                // So we already have a heap object
-            }
-        }
-        else if (raw_->isHeapAllocated()) {
-            // Switching from heap object to non-heap object
-            // release the root set.
-            unlinkFromRootSet();
-        }
-        else {
-            // Neither of the pointers are heap-allocated -- ignore.
-        }
-        raw_ = ro;
-    }
-
-    void unlinkFromRootSet() {
-        prevRoot_->nextRoot_ = nextRoot_;
-        nextRoot_->prevRoot_ = prevRoot_;
-    }
-
-    /** @brief The raw object pointer, may be changed during GC */
-    RawObject *raw_;
-
-    /** @brief Previous object in the GC root */
-    Object *prevRoot_;
-
-    /** @brief Next object in the GC root */
-    Object *nextRoot_;
 };
 
 class RawPair : public RawHeapObject {
 public:
-    static RawPair *wrap(const Object &car, const Object &cdr) {
+    static RawPair *Wrap(const Handle &car_h, const Handle &cdr_h) {
         RawPair *self = new RawPair();
-        self->car_ = car.raw();
-        self->cdr_ = cdr.raw();
+        self->car_ = car_h.Raw();
+        self->cdr_ = cdr_h.Raw();
         return self;
     }
     RawObject *car() const {
@@ -251,10 +115,11 @@ public:
     RawObject *cdr() const {
         return cdr_;
     }
-    virtual void printReprV(FILE *stream) const;
+    virtual void Write_V(FILE *stream) const;
+    intptr_t Hash_V() const;
 
 protected:
-    virtual void updateInteriorPointers(Heap &heap);
+    virtual void UpdateInteriorPointers(Heap &heap);
 
 private:
     RawPair() { }
@@ -265,99 +130,169 @@ private:
 
 class RawSymbol : public RawHeapObject {
 public:
-    static RawSymbol *wrap(const char *s) {
-        size_t len = strlen(s);
+    static RawSymbol *Wrap(const char *str_val) {
+        size_t len = strlen(str_val);
         void *addr = RawObject::operator new(sizeof(RawSymbol) + len + 1);
-        return (RawSymbol *)::new (addr) RawSymbol(s, len);
+        return (RawSymbol *)::new (addr) RawSymbol(str_val, len);
     }
-    const char *unwrap() const {
+    const char *Unwrap() const {
         return sval_;
     }
-    virtual void printReprV(FILE *stream) const;
+    size_t length() const {
+        return len_;
+    }
+    virtual void Write_V(FILE *stream) const;
+
+    static intptr_t StringHash(const char *s, size_t len) {
+        intptr_t iter = len;
+        intptr_t x;
+        x = *s << 7;
+        while (--iter >= 0)
+            x = (1000003*x) ^ *s++;
+        x ^= len;
+        if (x == -1)
+            x = -2;
+        return x;
+    }
+
+    virtual intptr_t Hash_V() const;
 
 protected:
     // Default ctor will clear out the values.
     RawSymbol(const char *s, size_t len) {
-        objectType_ = kSymbolType;
+        object_type_ = kSymbolType;
         memcpy(sval_, s, len + 1);
-        this->len = len;
+        this->len_ = len;
+        this->hash_ = StringHash(s, len);
     }
-    virtual void updateInteriorPointers(Heap &heap) { }
+
+    // Dummy
+    virtual void UpdateInteriorPointers(Heap &heap) { }
 
 private:
-    size_t len;
+    size_t len_;
+    intptr_t hash_;
     char sval_[0];
 };
 
 class RawVector : public RawHeapObject {
 public:
-    static RawVector *wrap(size_t length, const Object &fill) {
+    static RawVector *Wrap(size_t length, const Handle &fill) {
         void *addr = RawObject::operator new(sizeof(RawVector) +
                 length * sizeof(RawObject *));
         return (RawVector *)::new (addr) RawVector(length, fill);
     }
 
-    RawObject *&ref(size_t index) {
-        if (index >= len_) {
-            // We are checked.
+    RawObject *&At(size_t index) {
+        if (index < 0 || index >= length_) {
+            // Since we are doing safe operations, this is checked.
+            FATAL_ERROR("vector index out of bound");
         }
         else {
             return data_[index];
         }
     }
 
-    RawObject *const&ref(size_t index) const {
-        if (index >= len_) {
-            // We are checked.
-        }
-        else {
-            return data_[index];
-        }
+    RawObject *const&At(size_t index) const {
+        return ((RawVector *)this)->At(index);
     }
 
     size_t length() const {
-        return len_;
+        return length_;
     }
 
-    virtual void printReprV(FILE *stream) const;
+    virtual void Write_V(FILE *stream) const;
+    virtual intptr_t Hash_V() const;
 
 protected:
-    RawVector(size_t length, const Object &fill) {
-        objectType_ = kVectorType;
-        this->len_ = length;
+    RawVector(size_t length, const Handle &fill) {
+        object_type_ = kVectorType;
+        this->length_ = length;
         for (size_t i = 0; i < length; ++i) {
-            data_[i] = fill.raw();
+            data_[i] = fill.Raw();
         }
     }
 
-    virtual void updateInteriorPointers(Heap &heap) {
-        for (size_t i = 0; i < len_; ++i) {
-            data_[i] = heap.markAndCopy(data_[i]);
-        }
-    }
+    virtual void UpdateInteriorPointers(Heap &heap);
 
 private:
-    size_t len_;
+    size_t length_;
     RawObject *data_[0];
 };
 
-class RawHash : public RawHeapObject {
+class RawDict : public RawHeapObject {
 public:
-    static RawHash *wrap() {
-        return new RawHash();
+    static const size_t kInitLength = 8;
+    enum LookupFlag {
+        kLookupDefault,
+        kCreateOnAbsent,
+        kDeleteOnFound
+    };
+
+    static RawDict *Wrap() {
+        return new RawDict();
     }
 
-    virtual void printReprV(FILE *stream) const;
+    virtual intptr_t Hash_V() const;
+    virtual void Write_V(FILE *stream) const;
+
+    RawPair *LookupCString(const char *key, size_t len, intptr_t hash,
+                           LookupFlag flag) {
+        size_t bucket = hash & mask_;
+        Handle self = this;
+        Handle vec = self.AsDict().vec_;
+        Handle head = vec.AsVector().At(bucket);
+        Handle dummy_head = RawPair::Wrap(RawNil::Wrap(), head.Raw());
+        Handle iter = NULL;
+        Handle entry = NULL;
+
+        while (!dummy_head.AsObject().IsNil()) {
+            iter = dummy_head.AsPair().cdr();
+            entry = iter.AsPair().car();
+            Handle entry_key = entry.AsPair().car();
+            if (entry_key.AsSymbol().Hash() == hash) {
+                size_t slen = entry_key.AsSymbol().length();
+                const char *sval = entry_key.AsSymbol().Unwrap();
+                if (slen != len) {
+                    continue;
+                }
+                else {
+                    if (memcmp(key, sval, len) != 0) {
+                        continue;
+                    }
+                    else {
+                        // Finally this symbol is found.
+                        goto found;
+                    }
+                }
+            }
+            dummy_head = iter;
+        }
+        // Key is absent.
+        if (flag & kCreateOnAbsent) {
+        }
+found:
+        return NULL;
+    }
+
+    RawPair *LookupHashable(const Handle &key, LookupFlag flag) {
+        intptr_t hash = key.AsObject().Hash();
+        return NULL;
+    }
 
 protected:
-    RawHash() {
+    RawDict()
+        : used_(0),
+          mask_(kInitLength - 1),
+          vec_(NULL) {
+        Handle self = this;
+        self.AsDict().vec_ = RawVector::Wrap(kInitLength, RawNil::Wrap());
     }
 
-    virtual void updateInteriorPointers(Heap &heap) {
-    }
+    virtual void UpdateInteriorPointers(Heap &heap);
 
 private:
-    size_t size_;
+    size_t used_;
     size_t mask_;
     RawVector *vec_;
 };

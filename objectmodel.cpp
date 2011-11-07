@@ -1,62 +1,83 @@
 
 #include "objectmodel.hpp"
+#include "heap-inl.hpp"
+#include "objectmodel-inl.hpp"
+#include "handle-inl.hpp"
 
 namespace sanya {
 
 // Some virtual function implementations.
-void RawObject::printRepr(FILE *stream) const {
-    switch (getType()) {
-        case kNilType:
-            fprintf(stream, "()");
-            break;
-        case kFixnumType:
-            fprintf(stream, "%ld", ((RawFixnum *)this)->unwrap());
-            break;
-        default:
-            printReprV(stream);
-    }
-}
 
-void RawPair::printReprV(FILE *stream) const {
+void RawPair::Write_V(FILE *stream) const {
     fprintf(stream, "(");
-    car_->printRepr(stream);
+    car_->Write(stream);
 
     RawObject *it;
-    for (it = cdr_; it->isPair(); it = ((RawPair *)it)->cdr_) {
+    for (it = cdr_; it->IsPair(); it = ((RawPair *)it)->cdr_) {
         fprintf(stream, " ");
-        ((RawPair *)it)->car_->printRepr(stream);
+        ((RawPair *)it)->car_->Write(stream);
     }
 
-    if (!it->isNil()) {
+    if (!it->IsNil()) {
         fprintf(stream, " . ");
-        it->printRepr(stream);
+        it->Write(stream);
     }
 
     fprintf(stream, ")");
 }
 
-void RawPair::updateInteriorPointers(Heap &heap) {
-    car_ = heap.markAndCopy(car_);
-    cdr_ = heap.markAndCopy(cdr_);
+intptr_t RawPair::Hash_V() const {
+    FATAL_ERROR("mutable hash");
 }
 
-void RawSymbol::printReprV(FILE *stream) const {
+void RawPair::UpdateInteriorPointers(Heap &heap) {
+    car_ = heap.MarkAndCopy(car_);
+    cdr_ = heap.MarkAndCopy(cdr_);
+}
+
+void RawSymbol::Write_V(FILE *stream) const {
     fprintf(stream, "%s", sval_);
 }
 
-void RawVector::printReprV(FILE *stream) const {
+intptr_t RawSymbol::Hash_V() const {
+    return hash_;
+}
+
+void RawVector::Write_V(FILE *stream) const {
     fprintf(stream, "#(");
-    if (len_ == 0) {
+    if (length_ == 0) {
         fprintf(stream, ")");
         return;
     }
 
-    ref(0)->printRepr(stream);
-    for (size_t i = 1; i < len_; ++i) {
+    At(0)->Write(stream);
+    for (size_t i = 1; i < length_; ++i) {
         fprintf(stream, " ");
-        ref(i)->printRepr(stream);
+        At(i)->Write(stream);
     }
     fprintf(stream, ")");
+}
+
+intptr_t RawVector::Hash_V() const {
+    FATAL_ERROR("mutable hash");
+}
+
+void RawVector::UpdateInteriorPointers(Heap &heap) {
+    for (size_t i = 0; i < length_; ++i) {
+        data_[i] = heap.MarkAndCopy(data_[i]);
+    }
+}
+
+void RawDict::Write_V(FILE *stream) const {
+}
+
+
+intptr_t RawDict::Hash_V() const {
+    FATAL_ERROR("mutable hash");
+}
+
+void RawDict::UpdateInteriorPointers(Heap &heap) {
+    FATAL_ERROR("not implemented");
 }
 
 }  // namespace sanya
