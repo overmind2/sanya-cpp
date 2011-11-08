@@ -5,7 +5,7 @@
 flexbison_BISON=bison
 flexbison_FLEX=flex
 gcc_CC=g++
-gcc_CFLAGS=-ggdb3 -O3 -Wall -Winline -Wwrite-strings  \
+gcc_CFLAGS=-ggdb3 -O0 -Wall -Winline -Wwrite-strings  \
 	    -Wno-unused -c
 gcc_INCLUDES=-I./
 gcc_LDFLAGS=-O1 -ggdb3

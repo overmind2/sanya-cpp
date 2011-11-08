@@ -52,7 +52,7 @@ RawObject *Heap::MarkAndCopy(RawObject *ro) {
     // Copy and setting up forward pointer.
     memcpy(destination, rho, object_size);
     SetForwardPointer(rho, destination);
-    destination->self_ = (RawHeapObject *)(destination->self_);
+    destination->self_ = (RawHeapObject *)destination;
 
     // Update internal pointers
     // XXX: eliminate recursive calls!

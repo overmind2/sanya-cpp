@@ -19,7 +19,7 @@ public:
     Handle &Alloc(RawObject *);
 
 private:
-    std::vector<Handle> handles_;
+    std::vector<Handle *> handles_;
 };
 
 }  // namespace sanya

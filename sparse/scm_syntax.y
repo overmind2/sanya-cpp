@@ -26,10 +26,9 @@ static Handle prog_expr = Handle(NULL);
 
 prog: sexpr { $$ = alloc_handle(make_pair($1->raw(), make_nil()));
               prog_expr = $$->raw(); }
-    | sexpr prog { Handle sexpr = *($1);
-                   Handle prog = *($2);
-                   Handle retval = make_pair(sexpr.raw(), prog.raw());
-                   $$ = alloc_handle(retval.raw());
+    | sexpr prog { Handle *retval = alloc_handle(make_pair($1->raw(),
+                                                           $2->raw()));
+                   $$ = retval;
                    prog_expr = $$->raw(); }
 
 sexpr: T_EXPR { $$ = $1; }
@@ -77,6 +76,9 @@ sparse_do_string(const char *s)
     yyparse();
     yy_delete_buffer(buf);
 
+    delete parser_zone;
+    parser_zone = NULL;
+
     retval = prog_expr.raw();
     prog_expr = NULL;
     return retval;
@@ -96,6 +98,9 @@ sparse_do_file(FILE *fp)
     yy_switch_to_buffer(buf);
     yyparse();
     yy_delete_buffer(buf);
+
+    delete parser_zone;
+    parser_zone = NULL;
 
     retval = prog_expr.raw();
     prog_expr = NULL;

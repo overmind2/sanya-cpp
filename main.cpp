@@ -18,7 +18,10 @@ int main(int argc, const char *argv[])
         std::string line;
         std::getline(std::cin, line);
         expr = sparse_do_string(line.c_str());
-        //Heap::Get().TriggerCollection();
+        if (!expr.raw()) {
+            break;
+        }
+        Heap::Get().TriggerCollection();
         expr.raw()->Write(stdout);
     }
 
