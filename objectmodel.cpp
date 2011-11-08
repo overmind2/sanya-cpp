@@ -76,10 +76,7 @@ void RawVector::UpdateInteriorPointers(Heap &heap) {
 }
 
 RawPair *RawDict::LookupSymbol(const Handle& symbol, LookupFlag flag) {
-    intptr_t hash = symbol.AsSymbol().Hash();
-    const char *key = symbol.AsSymbol().Unwrap();
-    size_t len = symbol.AsSymbol().length();
-    size_t bucket = hash & mask_;
+    size_t bucket = symbol.AsSymbol().Hash() & mask_;
     Handle self = this;
     Handle vec = self.AsDict().vec_;
     Handle head = vec.AsVector().At(bucket);
@@ -92,30 +89,16 @@ RawPair *RawDict::LookupSymbol(const Handle& symbol, LookupFlag flag) {
         iter = dummy_head.AsPair().cdr();
         entry = iter.AsPair().car();
         entry_key = entry.AsPair().car();
-        if (entry_key.AsSymbol().Hash() == hash) {
-            size_t slen = entry_key.AsSymbol().length();
-            const char *sval = entry_key.AsSymbol().Unwrap();
-            if (slen != len) {
-                continue;
-            }
-            else {
-                if (!std::equal(key, key + len, sval)) {
-                    continue;
-                }
-                else {
-                    // This symbol is found.
-                    goto found;
-                }
-            }
+        if (RawSymbol::SymbolEq(&entry_key.AsSymbol(), &symbol.AsSymbol())) {
+            goto found;
         }
         dummy_head = iter;
     }
     // Key is absent since dummy_head.cdr is nil
     if (flag & kCreateOnAbsent) {
-        Handle new_symbol = RawSymbol::Wrap(key);
-        Handle entry = RawPair::Wrap(new_symbol, RawNil::Wrap());
-        Handle new_list_item = RawPair::Wrap(entry.raw(), RawNil::Wrap());
-        dummy_head.AsPair().set_cdr(new_list_item.raw());
+        entry = RawPair::Wrap(symbol, RawNil::Wrap());
+        iter = RawPair::Wrap(entry.raw(), RawNil::Wrap());
+        dummy_head.AsPair().set_cdr(iter.raw());
         return &entry.AsPair();
     }
     else {

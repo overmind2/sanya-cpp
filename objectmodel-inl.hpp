@@ -147,6 +147,14 @@ size_t RawSymbol::length() const {
     return len_;
 }
 
+inline bool RawSymbol::interned() const {
+    return interned_;
+}
+
+inline void RawSymbol::set_interned(bool p) {
+    interned_ = p;
+}
+
 intptr_t RawSymbol::StringHash(const char *s, size_t len) {
     intptr_t iter = len;
     intptr_t x;
@@ -157,6 +165,30 @@ intptr_t RawSymbol::StringHash(const char *s, size_t len) {
     if (x == -1)
         x = -2;
     return x;
+}
+
+bool RawSymbol::SymbolEq(RawSymbol *lhs, RawSymbol *rhs) {
+    if (lhs == rhs) {
+        // Most of the case
+        return true;
+    }
+    else if (lhs->interned() && rhs->interned()) {
+        // Most of the case
+        return false;
+    }
+    else {
+        // Either of them are interned. This happens during interning.
+        // (it's never the case that both of them are not interned)
+        if (lhs->hash_ != rhs->hash_) {
+            return false;
+        }
+        else if (lhs->length() != rhs->length()) {
+            return false;
+        }
+        const char *lhs_str = lhs->Unwrap();
+        size_t lhs_len = lhs->length();
+        return std::equal(lhs_str, lhs_str + lhs_len, rhs->Unwrap());
+    }
 }
 
 RawSymbol::RawSymbol(const char *s, size_t len) {
@@ -196,3 +228,4 @@ size_t RawVector::length() const {
 
 
 #endif /* OBJECTMODEL_INL_HPP */
+

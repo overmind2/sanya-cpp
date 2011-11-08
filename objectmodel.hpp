@@ -138,8 +138,12 @@ public:
     inline static RawSymbol *Wrap(const char *str_val);
     inline const char *Unwrap() const;
     inline size_t length() const;
+    inline bool interned() const;
+    inline void set_interned(bool);
 
     static inline intptr_t StringHash(const char *s, size_t len);
+    static inline bool SymbolEq(RawSymbol *lhs, RawSymbol *rhs);
+
     virtual void Write_V(FILE *stream) const;
     virtual intptr_t Hash_V() const;
 
@@ -151,7 +155,8 @@ protected:
     virtual void UpdateInteriorPointers(Heap &heap) { }
 
 private:
-    size_t len_;
+    uint32_t len_;
+    bool interned_;
     intptr_t hash_;
     char sval_[0];
 };

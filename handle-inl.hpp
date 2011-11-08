@@ -107,3 +107,4 @@ inline void Handle::UnlinkFromRootSet() {
 
 
 #endif /* HANDLE_INL_HPP */
+

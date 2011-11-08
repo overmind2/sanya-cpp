@@ -1,3 +1,5 @@
+#ifndef HANDLEZONE_HPP
+#define HANDLEZONE_HPP
 #include <vector>
 #include "handle.hpp"
 #include "objectmodel.hpp"
@@ -25,3 +27,5 @@ private:
 }  // namespace sanya
 
 // vim: set ts=4 sw=4 sts=4:
+
+#endif /* HANDLEZONE_HPP */

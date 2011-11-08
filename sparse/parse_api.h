@@ -1,3 +1,5 @@
+#ifndef PARSE_API_H
+#define PARSE_API_H
 #include "sanya.hpp"
 #include "objectmodel.hpp"
 #include "handle.hpp"
@@ -12,3 +14,5 @@ sanya::RawObject *sparse_do_file(FILE *fp);
 
 }
 
+
+#endif /* PARSE_API_H */

@@ -1,5 +1,7 @@
+#ifndef SANYA_API_H
+#define SANYA_API_H
 
-#include <cstdlib>
+#include <stdlib.h>
 #include "sanya.hpp"
 #include "objectmodel.hpp"
 #include "handle.hpp"
@@ -72,3 +74,5 @@ inline RawObject *make_splicing(RawObject *content) {
 
 }
 
+
+#endif /* SANYA_API_H */

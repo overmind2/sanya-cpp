@@ -1,6 +1,6 @@
 %{
 #include "sanya_api.h"
-#include "scm_syntax.bison.h"
+#include "scm_syntax.h"
 %}
 
 %%

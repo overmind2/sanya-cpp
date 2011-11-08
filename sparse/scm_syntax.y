@@ -1,7 +1,7 @@
 %{
 #include "sanya_api.h"
 #include "parse_api.h"
-#include "scm_token.flex.h"
+#include "scm_token.h"
 
 extern int yylex(void);
 extern void yyerror(const char *);
