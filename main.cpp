@@ -3,10 +3,8 @@
 #include <iostream>
 #include "heap.hpp"
 #include "objectmodel.hpp"
-#include "heap-inl.hpp"
-#include "objectmodel-inl.hpp"
-#include "handle-inl.hpp"
 #include "sparse/parse_api.h"
+#include "inlines.hpp"
 
 using namespace sanya;
 
@@ -21,7 +19,7 @@ int main(int argc, const char *argv[])
         if (!expr.raw()) {
             break;
         }
-        Heap::Get().TriggerCollection();
+        //Heap::Get().TriggerCollection();
         expr.raw()->Write(stdout);
     }
 

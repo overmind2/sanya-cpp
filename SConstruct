@@ -1,9 +1,9 @@
 from glob import glob
 
 env = Environment(YACCFLAGS=['-d'],
-                  LEXFLAGS=['-d'],
                   CPPPATH=['./', 'sparse/'],
-                  CPPFLAGS=['-Wall', '-ggdb3', '-O0'],
+                  CPPFLAGS=['-Wall', '-ggdb3', '-O2',
+                            '-march=native'],
                   CC='g++')
 
 env.Command('sparse/scm_token.h', # out

@@ -6,7 +6,7 @@
  * @brief Utilties
  */
 
-#include <stdio.h>
+#include <cstdio>
 
 #define FATAL_ERROR(what) \
   fprintf(stderr, "file %s, func %s, line %d -- SANYA::FATAL(%s)\n", \

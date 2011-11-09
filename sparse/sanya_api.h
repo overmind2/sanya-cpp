@@ -1,14 +1,13 @@
 #ifndef SANYA_API_H
 #define SANYA_API_H
 
-#include <stdlib.h>
+#include <cstdlib>
 #include "sanya.hpp"
 #include "objectmodel.hpp"
 #include "handle.hpp"
-#include "objectmodel-inl.hpp"
-#include "handle-inl.hpp"
-#include "heap-inl.hpp"
+#include "objspace.hpp"
 #include "handlezone.hpp"
+#include "inlines.hpp"
 
 using namespace sanya;
 
@@ -49,7 +48,7 @@ inline RawObject *make_string(const char *s, int length) {
 }
 
 inline RawObject *make_symbol(const char *s) {
-    return RawSymbol::Wrap(s);
+    return ObjSpace::Get().InternSymbol(s);
 }
 
 inline RawObject *make_vector(RawObject *list) {

@@ -6,18 +6,20 @@
  */
 
 #include "objectmodel.hpp"
-#include "objectmodel-inl.hpp"
 
 namespace sanya {
 
 class ObjSpace {
 public:
-    inline ObjSpace();
+    inline static ObjSpace& Get();
 
     inline RawSymbol *InternSymbol(const Handle &symbol);
     inline RawSymbol *InternSymbol(const char *s);
 
 protected:
+    static ObjSpace *inst_s;
+
+    inline ObjSpace();
     Handle symbol_table_;
 };
 

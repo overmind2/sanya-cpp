@@ -28,7 +28,7 @@ public:
     const static int kAligner = kAlignment - 1;
     const static size_t KB = 1024;
     const static size_t MB = 1024 * KB;
-    const static size_t kDefaultSize = 1 * KB;
+    const static size_t kDefaultSize = 1 * MB;
 
     Heap(size_t size);
     ~Heap();

@@ -1,6 +1,7 @@
 #ifndef OBJECTMODEL_INL_HPP
 #define OBJECTMODEL_INL_HPP
 #include <algorithm>
+#include "sanya.hpp"
 
 namespace sanya {
 
@@ -62,7 +63,7 @@ void RawObject::Write(FILE *stream) const {
 }
 
 bool RawObject::IsNil() const {
-    return object_type() == kNilType;
+    return this == RawNil::Wrap();
 }
 
 bool RawObject::IsBoolean() const {
@@ -83,6 +84,14 @@ bool RawObject::IsSymbol() const {
 
 bool RawObject::IsVector() const {
     return object_type() == kVectorType;
+}
+
+bool RawObject::IsGrowableVector() const {
+    return object_type() == kGrowableVectorType;
+}
+
+bool RawObject::IsDict() const {
+    return object_type() == kDictType;
 }
 
 RawFixnum *RawFixnum::Wrap(intptr_t int_val) {
@@ -133,6 +142,14 @@ void RawPair::set_cdr(RawObject *new_cdr) {
     cdr_ = new_cdr;
 }
 
+RawSymbol::RawSymbol(const char *s, size_t len) {
+    object_type_ = kSymbolType;
+    std::copy(s, s + len + 1, sval_);
+    this->len_ = len;
+    this->hash_ = StringHash(s, len);
+    this->interned_ = false;
+}
+
 RawSymbol *RawSymbol::Wrap(const char *str_val) {
     size_t len = strlen(str_val);
     void *addr = RawObject::operator new(sizeof(RawSymbol) + len + 1);
@@ -147,24 +164,22 @@ size_t RawSymbol::length() const {
     return len_;
 }
 
-inline bool RawSymbol::interned() const {
+bool RawSymbol::interned() const {
     return interned_;
 }
 
-inline void RawSymbol::set_interned(bool p) {
+void RawSymbol::set_interned(bool p) {
     interned_ = p;
 }
 
+// Copied from Java's hash algorithm
 intptr_t RawSymbol::StringHash(const char *s, size_t len) {
-    intptr_t iter = len;
-    intptr_t x;
-    x = *s << 7;
-    while (--iter >= 0)
-        x = (1000003*x) ^ *s++;
-    x ^= len;
-    if (x == -1)
-        x = -2;
-    return x;
+    uintptr_t hash = 0;
+    while (len-- > 0) {
+        hash = 31*hash + (unsigned) *s;
+        s++;
+    }
+    return hash;
 }
 
 bool RawSymbol::SymbolEq(RawSymbol *lhs, RawSymbol *rhs) {
@@ -186,22 +201,25 @@ bool RawSymbol::SymbolEq(RawSymbol *lhs, RawSymbol *rhs) {
             return false;
         }
         const char *lhs_str = lhs->Unwrap();
+        const char *rhs_str = rhs->Unwrap();
+        printf("comparing %s with %s\n", lhs_str, rhs_str);
         size_t lhs_len = lhs->length();
         return std::equal(lhs_str, lhs_str + lhs_len, rhs->Unwrap());
     }
-}
-
-RawSymbol::RawSymbol(const char *s, size_t len) {
-    object_type_ = kSymbolType;
-    std::copy(s, s + len + 1, sval_);
-    this->len_ = len;
-    this->hash_ = StringHash(s, len);
 }
 
 RawVector *RawVector::Wrap(size_t length, const Handle &fill) {
     void *addr = RawObject::operator new(sizeof(RawVector) +
             length * sizeof(RawObject *));
     return (RawVector *)::new (addr) RawVector(length, fill);
+}
+
+RawVector *RawVector::Wrap(RawVector *copy_from, size_t copy_howmany,
+                           size_t length, const Handle &fill) {
+    void *addr = RawObject::operator new(sizeof(RawVector) +
+            length * sizeof(RawObject *));
+    return (RawVector *)::new (addr) RawVector(copy_from, copy_howmany,
+                                               length, fill);
 }
 
 RawObject *& RawVector::At(size_t index) {
@@ -220,6 +238,102 @@ RawObject *const& RawVector::At(size_t index) const {
 
 size_t RawVector::length() const {
     return length_;
+}
+
+RawGrowableVector::RawGrowableVector()
+    : usage_(0) {
+    Handle self = this;
+    data_ = RawVector::Wrap(kInitSize, RawNil::Wrap());
+}
+
+RawGrowableVector *RawGrowableVector::Wrap() {
+    return new RawGrowableVector();
+}
+
+RawObject *& RawGrowableVector::At(intptr_t index) {
+    if (index < 0) {
+        index += usage_;
+        if (index < 0) {
+            index = 0;
+        }
+    }
+    return data_->At(index);
+}
+
+RawObject *const& RawGrowableVector::At(intptr_t index) const {
+    return ((RawGrowableVector *)this)->At(index);
+}
+
+size_t RawGrowableVector::length() const {
+    return usage_;
+}
+
+RawObject *RawGrowableVector::Pop() {
+    Handle retval = At(-1);
+    At(-1) = RawNil::Wrap();
+    DecreaseUsage();
+    return retval.raw();
+}
+
+void RawGrowableVector::Append(const Handle &o) {
+    IncreaseUsage();
+    At(-1) = o.raw();
+}
+
+void RawGrowableVector::DecreaseUsage() {
+    usage_ -= 1;
+    if (usage_ > (kInitSize << 2) && usage_ < (data_->length() >> 2)) {
+        size_t new_size = data_->length() >> 1;
+        Resize(new_size);
+    }
+}
+
+void RawGrowableVector::IncreaseUsage() {
+    usage_ += 1;
+    if (usage_ > data_->length()) {
+        size_t new_size = data_->length() << 1;
+        Resize(new_size);
+    }
+}
+
+RawDict::RawDict()
+    : used_(0),
+      size_(kPrimes[0]),
+      vec_(NULL) {
+    Handle self = this;
+    object_type_ = kDictType;
+    self.AsDict().vec_ = RawVector::Wrap(size_, RawNil::Wrap());
+}
+
+void RawDict::IncreaseUsage() {
+    ++used_;
+    // More than 150%
+    if (used_ > (size_ + (size_ >> 1))) {
+        size_t next_size;
+        for (size_t i = 0; i < kNumberPrimes; ++i) {
+            next_size = kPrimes[i];
+            if (next_size > size_) {
+                Resize(next_size);
+                return;
+            }
+        }
+        FATAL_ERROR("dict too large");
+    }
+}
+
+void RawDict::DecreaseUsage() {
+    --used_;
+    // Less than 25% but more than kInitLength
+    if (used_ < (size_ >> 2) && size_ > kPrimes[0]) {
+        size_t next_size;
+        for (size_t i = 0; i < kNumberPrimes; ++i) {
+            next_size = kPrimes[i];
+            if (next_size > size_) {
+                Resize(kPrimes[i - 1]);
+                return;
+            }
+        }
+    }
 }
 
 }  // namespace sanya

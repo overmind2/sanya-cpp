@@ -59,6 +59,10 @@ RawVector &Handle::AsVector() const {
     return *(RawVector *)raw_;
 }
 
+RawGrowableVector &Handle::AsGrowableVector() const {
+    return *(RawGrowableVector *)raw_;
+}
+
 RawDict &Handle::AsDict() const {
     return *(RawDict *)raw_;
 }

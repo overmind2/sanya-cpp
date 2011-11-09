@@ -35,7 +35,9 @@ public:
         kLastNonHeapType = kNonHeapTypeMask,  // Last non-heap-object
         kSymbolType = kLastNonHeapType + 1,
         kPairType,
-        kVectorType
+        kVectorType,
+        kGrowableVectorType,
+        kDictType
     };
 
     virtual ~RawObject() { }
@@ -60,6 +62,8 @@ public:
     inline bool IsPair() const;
     inline bool IsSymbol() const;
     inline bool IsVector() const;
+    inline bool IsGrowableVector() const;
+    inline bool IsDict() const;
 
     virtual void Write_V(FILE *stream) const = 0;
     virtual intptr_t Hash_V() const = 0;
@@ -164,6 +168,8 @@ private:
 class RawVector : public RawHeapObject {
 public:
     static inline RawVector *Wrap(size_t length, const Handle &fill);
+    static inline RawVector *Wrap(RawVector *copy_from, size_t copy_howmany,
+                                  size_t length, const Handle &fill);
 
     inline RawObject *&At(size_t index);
     inline RawObject *const&At(size_t index) const;
@@ -175,6 +181,8 @@ public:
 protected:
     // Contains a loop so no inlining
     RawVector(size_t length, const Handle &fill);
+    RawVector(RawVector *copy_from, size_t copy_howmany,
+              size_t length, const Handle &fill);
 
     virtual void UpdateInteriorPointers(Heap &heap);
 
@@ -183,14 +191,44 @@ private:
     RawObject *data_[0];
 };
 
+class RawGrowableVector : public RawHeapObject {
+public:
+    static const size_t kInitSize = 4;
+    static inline RawGrowableVector *Wrap();
+
+    inline RawObject *&At(intptr_t);
+    inline RawObject *const&At(intptr_t) const;
+    inline size_t length() const;
+    inline RawObject *Pop();
+    inline void Append(const Handle &);
+
+    virtual void Write_V(FILE *stream) const;
+    virtual intptr_t Hash_V() const;
+
+protected:
+    inline RawGrowableVector();
+
+    inline void DecreaseUsage();
+    inline void IncreaseUsage();
+    void Resize(size_t to_size);
+    virtual void UpdateInteriorPointers(Heap &heap);
+
+private:
+    size_t usage_;
+    RawVector *data_;
+};
+
 class RawDict : public RawHeapObject {
 public:
-    static const size_t kInitLength = 8;
     enum LookupFlag {
-        kLookupDefault,
-        kCreateOnAbsent,
-        kDeleteOnFound
+        kLookupDefault  = 1,
+        kCreateOnAbsent = 2,
+        kDeleteOnFound  = 4
     };
+    static const size_t kInitLength = 8;
+    // Copied from backward/hashtable.h
+    static const size_t kNumberPrimes = 29;
+    static const size_t kPrimes[kNumberPrimes];
 
     static RawDict *Wrap() {
         return new RawDict();
@@ -206,13 +244,16 @@ public:
     RawPair *LookupSymbol(const Handle &key, LookupFlag flag);
 
 protected:
-    RawDict();
+    inline RawDict();
 
     virtual void UpdateInteriorPointers(Heap &heap);
+    void Resize(const size_t new_size);
+    inline void IncreaseUsage();
+    inline void DecreaseUsage();
 
 private:
     size_t used_;
-    size_t mask_;
+    size_t size_;
     RawVector *vec_;
 };
 

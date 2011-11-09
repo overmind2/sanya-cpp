@@ -3,12 +3,23 @@
 
 namespace sanya {
 
+ObjSpace& ObjSpace::Get() {
+    if (!inst_s) {
+        inst_s = new ObjSpace();
+    }
+    return *inst_s;
+}
+
 ObjSpace::ObjSpace()
     : symbol_table_(RawDict::Wrap()) { }
 
 RawSymbol *ObjSpace::InternSymbol(const Handle &symbol) {
-    RawPair *rp = symbol_table_.AsDict().LookupSymbol(symbol, kCreateOnAbsent);
-    return (RawSymbol *)rp->car();
+    RawPair *rp = symbol_table_.AsDict().LookupSymbol(symbol,
+            RawDict::kCreateOnAbsent);
+    //printf("intern %p => %p\n", symbol.raw(), rp);
+    RawSymbol *retval = (RawSymbol *)rp->car();
+    retval->set_interned(true);
+    return retval;
 }
 
 RawSymbol *ObjSpace::InternSymbol(const char *s) {

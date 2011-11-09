@@ -6,9 +6,7 @@
 
 #include "heap.hpp"
 #include "objectmodel.hpp"
-#include "heap-inl.hpp"
-#include "objectmodel-inl.hpp"
-#include "handle-inl.hpp"
+#include "inlines.hpp"
 
 namespace sanya {
 

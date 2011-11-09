@@ -12,6 +12,7 @@ class RawNil;
 class RawPair;
 class RawSymbol;
 class RawVector;
+class RawGrowableVector;
 class RawDict;
 
 /**
@@ -49,6 +50,7 @@ public:
     inline RawPair &AsPair() const;
     inline RawFixnum &AsFixnum() const;
     inline RawSymbol &AsSymbol() const;
+    inline RawGrowableVector &AsGrowableVector() const;
     inline RawVector &AsVector() const;
     inline RawDict &AsDict() const;
 

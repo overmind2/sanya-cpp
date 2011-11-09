@@ -3,9 +3,7 @@
 #include "sanya.hpp"
 #include "objectmodel.hpp"
 #include "handle.hpp"
-#include "objectmodel-inl.hpp"
-#include "handle-inl.hpp"
-#include "heap-inl.hpp"
+#include "inlines.hpp"
 
 extern "C" {
 

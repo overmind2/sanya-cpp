@@ -12,7 +12,7 @@ RawHeapObject *Heap::Alloc(size_t size) {
     // Align.
     size = (size + kAligner) & (~kAligner);
     size_t usage_after_alloc = size + usage_;
-    printf(":heap-alloc %ld => %ld\n", usage_, usage_after_alloc);
+    //printf(":heap-alloc %ld => %ld\n", usage_, usage_after_alloc);
     if (usage_after_alloc > size_) {
         // Mark and copy is triggered.
         TriggerCollection();
